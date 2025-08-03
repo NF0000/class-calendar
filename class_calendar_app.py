@@ -100,58 +100,47 @@ class ClassCalendarApp:
 
         class_info = self.data.get(key, {})
         
-        ttk.Label(edit_window, text="授業名:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
-        subject_entry = ttk.Entry(edit_window, width=30)
-        subject_entry.grid(row=0, column=1, padx=10, pady=5)
-        subject_entry.insert(0, class_info.get('subject', ''))
-
-        ttk.Label(edit_window, text="教師:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
-        teacher_entry = ttk.Entry(edit_window, width=30)
-        teacher_entry.grid(row=1, column=1, padx=10, pady=5)
-        teacher_entry.insert(0, class_info.get('teacher', ''))
-
-        ttk.Label(edit_window, text="教室:").grid(row=2, column=0, padx=10, pady=5, sticky="w")
-        classroom_entry = ttk.Entry(edit_window, width=30)
-        classroom_entry.grid(row=2, column=1, padx=10, pady=5)
-        classroom_entry.insert(0, class_info.get('classroom', ''))
+        # --- UI Elements ---
+        entries = {}
+        labels = {"授業名:": "subject", "教師:": "teacher", "教室:": "classroom"}
+        for i, (text, data_key) in enumerate(labels.items()):
+            ttk.Label(edit_window, text=text).grid(row=i, column=0, padx=10, pady=5, sticky="w")
+            entry = ttk.Entry(edit_window, width=30)
+            entry.grid(row=i, column=1, padx=10, pady=5)
+            entry.insert(0, class_info.get(data_key, ''))
+            entries[data_key] = entry
 
         note_path_var = tk.StringVar(value=class_info.get('note_path', ''))
         ttk.Label(edit_window, text="ノートファイル:").grid(row=3, column=0, padx=10, pady=5, sticky="w")
-        note_label = ttk.Label(edit_window, textvariable=note_path_var, wraplength=200)
-        note_label.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        ttk.Label(edit_window, textvariable=note_path_var, wraplength=200).grid(row=3, column=1, padx=10, pady=5, sticky="w")
+
+        # --- Note File Buttons ---
+        def select_note_file():
+            filepath = filedialog.askopenfilename(
+                title="ノートファイル (.md) を選択",
+                filetypes=[("Markdown files", "*.md"), ("All files", "*.*")])
+            if filepath:
+                note_path_var.set(filepath)
 
         open_note_button = ttk.Button(edit_window, text="ノートを開く", command=lambda: self.open_note_file(note_path_var.get()))
         open_note_button.grid(row=4, column=0, padx=10, pady=10, sticky="w")
+        ttk.Button(edit_window, text="ノートを選択...", command=select_note_file).grid(row=4, column=1, padx=10, pady=10, sticky="e")
 
         def update_open_button_state(*args):
-            if note_path_var.get() and os.path.exists(note_path_var.get()):
-                open_note_button.config(state=tk.NORMAL)
-            else:
-                open_note_button.config(state=tk.DISABLED)
+            state = tk.NORMAL if note_path_var.get() and os.path.exists(note_path_var.get()) else tk.DISABLED
+            open_note_button.config(state=state)
 
         note_path_var.trace_add("write", update_open_button_state)
         update_open_button_state()
 
-        def select_note_file():
-            note_path_var.trace_add("write", update_open_button_state)
-        update_open_button_state()
-
-        def select_note_file():
-            filepath = filedialog.askopenfilename(
-                title="ノートファイル (.md) を選択",
-                filetypes=[("Markdown files", "*.md"), ("All files", "*.* אמיתי")])
-            if filepath:
-                note_path_var.set(filepath)
-
-        ttk.Button(edit_window, text="ノートを選択...", command=select_note_file).grid(row=4, column=1, padx=10, pady=10, sticky="e")
+        # --- Main Action Buttons ---
+        button_frame = ttk.Frame(edit_window)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=10)
 
         def save_and_close():
-            new_info = {
-                'subject': subject_entry.get(),
-                'teacher': teacher_entry.get(),
-                'classroom': classroom_entry.get(),
-                'note_path': note_path_var.get()
-            }
+            new_info = {data_key: entry.get() for data_key, entry in entries.items()}
+            new_info['note_path'] = note_path_var.get()
+
             if any(new_info.values()):
                 self.data[key] = new_info
             elif key in self.data:
@@ -161,12 +150,6 @@ class ClassCalendarApp:
             self.save_all_data()
             edit_window.destroy()
 
-        button_frame = ttk.Frame(edit_window)
-        button_frame.grid(row=5, column=0, columnspan=2, pady=10)
-
-        ttk.Button(button_frame, text="保存", command=save_and_close).pack(side="left", padx=5)
-        ttk.Button(button_frame, text="キャンセル", command=edit_window.destroy).pack(side="left", padx=5)
-        
         def delete_class_and_close():
             if messagebox.askyesno("確認", "本当にこの授業を削除しますか？"):
                 if key in self.data:
@@ -175,36 +158,39 @@ class ClassCalendarApp:
                     self.save_all_data()
                 edit_window.destroy()
 
+        ttk.Button(button_frame, text="保存", command=save_and_close).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="キャンセル", command=edit_window.destroy).pack(side="left", padx=5)
         ttk.Button(button_frame, text="削除", command=delete_class_and_close).pack(side="left", padx=5)
         
-        # --- 課題作成ボタン ---
-        can_create_assignment = self.word_template_path and os.path.exists(self.word_template_path) and self.student_id
-        assignment_button_state = tk.NORMAL if can_create_assignment else tk.DISABLED
-        
-        create_assignment_button = ttk.Button(button_frame, text="課題を作成", 
-                                               command=lambda: self.create_assignment_from_template(key, edit_window),
-                                               state=assignment_button_state)
-        create_assignment_button.pack(side="right", padx=20)
+        # --- Assignment Creation Button ---
+        self.setup_assignment_button(button_frame, key, edit_window)
 
-        if not can_create_assignment:
+    def setup_assignment_button(self, parent, key, window):
+        can_create = self.word_template_path and os.path.exists(self.word_template_path) and self.student_id
+        
+        btn = ttk.Button(parent, text="課題を作成", 
+                         command=lambda: self.create_assignment_from_template(key, window),
+                         state=tk.NORMAL if can_create else tk.DISABLED)
+        btn.pack(side="right", padx=20)
+
+        if not can_create:
             tooltip_text = ""
             if not self.word_template_path or not os.path.exists(self.word_template_path):
                 tooltip_text += "・Wordテンプレートが未設定です\n"
             if not self.student_id:
                 tooltip_text += "・学籍番号が未設定です"
             
-            # 簡単なツールチップの実装
             def show_tooltip(event):
-                tooltip = tk.Toplevel(edit_window)
+                tooltip = tk.Toplevel(window)
                 tooltip.wm_overrideredirect(True)
                 tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
                 label = tk.Label(tooltip, text=tooltip_text.strip(), justify='left',
                                  background="#ffffe0", relief='solid', borderwidth=1,
                                  font=("tahoma", "8", "normal"))
                 label.pack(ipadx=1)
-                create_assignment_button.bind("<Leave>", lambda e: tooltip.destroy())
+                btn.bind("<Leave>", lambda e: tooltip.destroy())
             
-            create_assignment_button.bind("<Enter>", show_tooltip)
+            btn.bind("<Enter>", show_tooltip)
 
     def open_note_file(self, filepath):
         if filepath and os.path.exists(filepath):
