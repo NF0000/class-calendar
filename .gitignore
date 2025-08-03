@@ -1,0 +1,15 @@
+# Personal data file
+timetable_data.json
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Generated assignment files
+*.docx
+
+# Word template backup files
+~$*.docx
+
+# Gemini file
+GEMINI.md
